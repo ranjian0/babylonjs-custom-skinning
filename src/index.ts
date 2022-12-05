@@ -1,23 +1,24 @@
 import { Engine } from "@babylonjs/core/Engines/engine";
 import { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine";
-import { getSceneModuleWithName } from "./createScene";
+import { Scene } from "@babylonjs/core";
 import "@babylonjs/core/Engines/WebGPU/Extensions/engine.uniformBuffer";
+import { ArcRotateCamera } from "@babylonjs/core/Cameras";
+import { Vector3 } from "@babylonjs/core/Maths";
+import { SceneLoader } from "@babylonjs/core/Loading";
+import { HemisphericLight } from "@babylonjs/core/Lights";
+import "@babylonjs/core/Loading/loadingScreen";
+import "@babylonjs/loaders/glTF";
+import "@babylonjs/core/Materials/standardMaterial";
+import "@babylonjs/core/Materials/Textures/Loaders/envTextureLoader";
 
-const getModuleToLoad = (): string | undefined =>
-    location.search.split("scene=")[1]?.split("&")[0];
+
+import rigMesh from "../assets/glb/rig.glb";
 
 export const babylonInit = async (): Promise<void> => {
-    // get the module to load
-    const moduleName = getModuleToLoad();
-    const createSceneModule = await getSceneModuleWithName(moduleName);
+    const canvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
+    let engine: Engine;
     const engineType =
         location.search.split("engine=")[1]?.split("&")[0] || "webgl";
-    // Execute the pretasks, if defined
-    await Promise.all(createSceneModule.preTasks || []);
-    // Get the canvas element
-    const canvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
-    // Generate the BABYLON 3D engine
-    let engine: Engine;
     if (engineType === "webgpu") {
         const webGPUSupported = await WebGPUEngine.IsSupportedAsync;
         if (webGPUSupported) {
@@ -34,19 +35,60 @@ export const babylonInit = async (): Promise<void> => {
         engine = new Engine(canvas, true);
     }
 
-    // Create the scene
-    const scene = await createSceneModule.createScene(engine, canvas);
+    const scene = new Scene(engine);
+    void Promise.all([
+        import("@babylonjs/core/Debug/debugLayer"),
+        import("@babylonjs/inspector"),
+    ]).then((_values) => {
+        console.log(_values);
+        scene.debugLayer.show({
+            handleResize: true,
+            overlay: true,
+            globalRoot: document.getElementById("#root") || undefined,
+        });
+    });
 
-    // Register a render loop to repeatedly render the scene
+    const camera = new ArcRotateCamera(
+        "cam",
+        0,
+        Math.PI / 3,
+        20,
+        new Vector3(0, 0, 0),
+        scene
+    );
+    camera.setTarget(Vector3.Zero());
+    camera.attachControl(canvas, true);
+
+    await buildScene(scene)
+
     engine.runRenderLoop(function () {
         scene.render();
     });
-
-    // Watch for browser/canvas resize events
     window.addEventListener("resize", function () {
         engine.resize();
     });
 };
+
+async function buildScene(scene: Scene) {
+    const light = new HemisphericLight(
+        "light",
+        new Vector3(0, 1, 0),
+        scene
+    );
+    light.intensity = 0.7;
+
+    const importResult = await SceneLoader.ImportMeshAsync(
+        "",
+        "",
+        rigMesh,
+        scene,
+        undefined,
+        ".glb"
+    );
+
+    console.log(importResult);
+
+}
 
 babylonInit().then(() => {
     // scene started rendering, everything is initialized

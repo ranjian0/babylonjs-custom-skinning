@@ -6,6 +6,8 @@ import { ArcRotateCamera } from "@babylonjs/core/Cameras";
 import { Vector3 } from "@babylonjs/core/Maths";
 import { SceneLoader } from "@babylonjs/core/Loading";
 import { HemisphericLight } from "@babylonjs/core/Lights";
+import { Effect } from "@babylonjs/core/Materials";
+import { ShaderMaterial } from "@babylonjs/core/Materials";
 import "@babylonjs/core/Loading/loadingScreen";
 import "@babylonjs/loaders/glTF";
 import "@babylonjs/core/Materials/standardMaterial";
@@ -13,6 +15,9 @@ import "@babylonjs/core/Materials/Textures/Loaders/envTextureLoader";
 
 
 import rigMesh from "../assets/glb/rig.glb";
+import skinningVertexShader from "./glsl/skinning/vertex.glsl";
+import skinningFragmentShader from "./glsl/skinning/fragment.glsl";
+
 
 export const babylonInit = async (): Promise<void> => {
     const canvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
@@ -86,7 +91,30 @@ async function buildScene(scene: Scene) {
         ".glb"
     );
 
-    console.log(importResult);
+    const skinMesh = importResult.meshes.find(m => m.name === "skinMesh");
+    if (skinMesh) {
+        Effect.ShadersStore["skinningVertexShader"] = skinningVertexShader;
+        Effect.ShadersStore["skinningFragmentShader"] = skinningFragmentShader;
+    
+        // Create shader material to use with the sphere
+        const shaderMaterial = new ShaderMaterial(
+            "skinning",
+            scene,
+            {
+                vertex: "skinning",
+                fragment: "skinning",
+            },
+            {
+                attributes: ["position", "normal", "color"],
+                defines: [],
+                samplers: [],
+                uniforms: ["cameraPosition", "world", "worldViewProjection"],
+            }
+        );
+    
+        skinMesh.material = shaderMaterial;
+    }
+
 
 }
 

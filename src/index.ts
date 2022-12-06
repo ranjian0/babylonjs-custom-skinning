@@ -1,6 +1,6 @@
 import { Engine } from "@babylonjs/core/Engines/engine";
 import { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine";
-import { Scene } from "@babylonjs/core";
+import { Mesh, Scene } from "@babylonjs/core";
 import "@babylonjs/core/Engines/WebGPU/Extensions/engine.uniformBuffer";
 import { ArcRotateCamera } from "@babylonjs/core/Cameras";
 import { Vector3 } from "@babylonjs/core/Maths";
@@ -8,6 +8,8 @@ import { SceneLoader } from "@babylonjs/core/Loading";
 import { HemisphericLight } from "@babylonjs/core/Lights";
 import { Effect } from "@babylonjs/core/Materials";
 import { ShaderMaterial } from "@babylonjs/core/Materials";
+import { Buffer } from "@babylonjs/core/Buffers/buffer";
+import { Matrix } from "@babylonjs/core/Maths/math.vector";
 import "@babylonjs/core/Loading/loadingScreen";
 import "@babylonjs/loaders/glTF";
 import "@babylonjs/core/Materials/standardMaterial";
@@ -23,7 +25,7 @@ type GLTFJsonNode = {
     name: string;
     index: number;
     mesh: number;
-    extras: object;
+    extras: any;
 }
 
 type GLTFJson = {
@@ -74,7 +76,7 @@ export const babylonInit = async (): Promise<void> => {
     camera.setTarget(Vector3.Zero());
     camera.attachControl(canvas, true);
 
-    await buildScene(scene)
+    await buildScene(scene);
 
     engine.runRenderLoop(function () {
         scene.render();
@@ -92,6 +94,9 @@ async function buildScene(scene: Scene) {
     );
     light.intensity = 0.7;
 
+    let shaderTime = 0;
+    let boneMats: any = null;
+    let boneWeights: any = null;
     const plugin = SceneLoader.Append(
         rigMesh,
         "",
@@ -110,20 +115,54 @@ async function buildScene(scene: Scene) {
                         fragment: "skinning",
                     },
                     {
-                        attributes: ["position", "normal", "color"],
+                        attributes: ["position", "normal", "color", "weights"],
                         defines: [],
                         samplers: [],
-                        uniforms: ["cameraPosition", "world", "worldViewProjection"],
+                        uniforms: ["cameraPosition", "world", "worldViewProjection", "time"],
                     }
                 );
+
+                // time uniform
+                scene.registerBeforeRender(() => {
+                    // console.log(shaderTime);
+                    shaderMaterial.setFloat('time', shaderTime);
+                    shaderTime += scene.getEngine().getDeltaTime();
+                });
+
+                let counter = 0;
+                const shaderWeights = new Float32Array(Object.keys(boneWeights).length * 3);
+                for (const vertId in boneWeights) {
+                    boneWeights[vertId].forEach((w: number) => {
+                        shaderWeights[counter++] = w;
+                    });
+                }
+
+                // set vertex weights
+                for (const vertId in boneWeights) {
+                    shaderMaterial.setArray3(
+                        `weights[${vertId}]`, 
+                        boneWeights[vertId]
+                    );
+                }
+
+                // set bones matrices
+                for (const frameNumber in boneMats) {
+                    for (let boneId = 0; boneId < boneMats[frameNumber].length; boneId++ ) {
+                        shaderMaterial.setMatrix(
+                            `bones[${Number(frameNumber) - 1}].b[${boneId}]`, 
+                            Matrix.FromArray(boneMats[frameNumber][boneId])
+                        );
+                    }
+                }
 
                 resulting_mesh.material = shaderMaterial;
             }
         }
     );
-    (plugin as GLTFFileLoader)?.onParsedObservable.add(gltfBabylon => {
+    (plugin as GLTFFileLoader).onParsedObservable.add(gltfBabylon => {
         const skinNode = (gltfBabylon.json as GLTFJson).nodes.find(n => n.name === "skinMesh");
-        console.log(skinNode);
+        boneMats = skinNode?.extras?.boneMats;
+        boneWeights = skinNode?.extras?.boneWeights;
     });
 }
 

@@ -1,6 +1,6 @@
 import { Engine } from "@babylonjs/core/Engines/engine";
 import { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine";
-import { Mesh, Scene } from "@babylonjs/core";
+import { AbstractMesh, Scene } from "@babylonjs/core";
 import "@babylonjs/core/Engines/WebGPU/Extensions/engine.uniformBuffer";
 import { ArcRotateCamera } from "@babylonjs/core/Cameras";
 import { Vector3 } from "@babylonjs/core/Maths";
@@ -8,8 +8,11 @@ import { SceneLoader } from "@babylonjs/core/Loading";
 import { HemisphericLight } from "@babylonjs/core/Lights";
 import { Effect } from "@babylonjs/core/Materials";
 import { ShaderMaterial } from "@babylonjs/core/Materials";
-import { Buffer } from "@babylonjs/core/Buffers/buffer";
+import { CreateGround } from "@babylonjs/core/Meshes/Builders/groundBuilder";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { Matrix } from "@babylonjs/core/Maths/math.vector";
+import { DirectionalLight } from "@babylonjs/core/Lights/directionalLight";
+import { ShadowGenerator } from "@babylonjs/core/Lights/Shadows/shadowGenerator";
 import "@babylonjs/core/Loading/loadingScreen";
 import "@babylonjs/loaders/glTF";
 import "@babylonjs/core/Materials/standardMaterial";
@@ -87,12 +90,28 @@ export const babylonInit = async (): Promise<void> => {
 };
 
 async function buildScene(scene: Scene) {
-    const light = new HemisphericLight(
+    const ground = CreateGround(
+        "ground",
+        { width: 20, height: 20 },
+        scene
+    );
+
+    const groundMaterial = new StandardMaterial("groundmat", scene);
+    ground.material = groundMaterial;
+    ground.receiveShadows = true;
+
+    const light = new DirectionalLight(
         "light",
-        new Vector3(0, 1, 0),
+        new Vector3(0, -1, 1),
         scene
     );
     light.intensity = 0.7;
+    light.position.y = 10;
+
+    const shadowGenerator = new ShadowGenerator(512, light)
+    shadowGenerator.useBlurExponentialShadowMap = true;
+    shadowGenerator.blurScale = 2;
+    shadowGenerator.setDarkness(0.2);
 
     let shaderTime = 0;
     let boneMats: any = null;
@@ -156,6 +175,7 @@ async function buildScene(scene: Scene) {
                 }
 
                 resulting_mesh.material = shaderMaterial;
+                shadowGenerator.getShadowMap()?.renderList?.push(resulting_mesh as AbstractMesh);
             }
         }
     );

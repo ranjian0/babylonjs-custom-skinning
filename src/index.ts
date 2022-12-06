@@ -17,7 +17,18 @@ import "@babylonjs/core/Materials/Textures/Loaders/envTextureLoader";
 import rigMesh from "../assets/glb/rig.glb";
 import skinningVertexShader from "./glsl/skinning/vertex.glsl";
 import skinningFragmentShader from "./glsl/skinning/fragment.glsl";
+import { GLTFFileLoader } from "@babylonjs/loaders/glTF";
 
+type GLTFJsonNode = {
+    name: string;
+    index: number;
+    mesh: number;
+    extras: object;
+}
+
+type GLTFJson = {
+    nodes: Array<GLTFJsonNode>;
+}
 
 export const babylonInit = async (): Promise<void> => {
     const canvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
@@ -82,40 +93,39 @@ async function buildScene(scene: Scene) {
     );
     light.intensity = 0.7;
 
-    const importResult = await SceneLoader.ImportMeshAsync(
-        "",
-        "",
+    const plugin = SceneLoader.Append(
         rigMesh,
+        "",
         scene,
-        undefined,
-        ".glb"
-    );
-
-    const skinMesh = importResult.meshes.find(m => m.name === "skinMesh");
-    if (skinMesh) {
-        Effect.ShadersStore["skinningVertexShader"] = skinningVertexShader;
-        Effect.ShadersStore["skinningFragmentShader"] = skinningFragmentShader;
-    
-        // Create shader material to use with the sphere
-        const shaderMaterial = new ShaderMaterial(
-            "skinning",
-            scene,
-            {
-                vertex: "skinning",
-                fragment: "skinning",
-            },
-            {
-                attributes: ["position", "normal", "color"],
-                defines: [],
-                samplers: [],
-                uniforms: ["cameraPosition", "world", "worldViewProjection"],
+        scene => {
+            const resulting_mesh = scene.getMeshByName("skinMesh");
+            if (resulting_mesh) {
+                Effect.ShadersStore["skinningVertexShader"] = skinningVertexShader;
+                Effect.ShadersStore["skinningFragmentShader"] = skinningFragmentShader;
+            
+                const shaderMaterial = new ShaderMaterial(
+                    "skinning",
+                    scene,
+                    {
+                        vertex: "skinning",
+                        fragment: "skinning",
+                    },
+                    {
+                        attributes: ["position", "normal", "color"],
+                        defines: [],
+                        samplers: [],
+                        uniforms: ["cameraPosition", "world", "worldViewProjection"],
+                    }
+                );
+                
+                resulting_mesh.material = shaderMaterial;            
             }
-        );
-    
-        skinMesh.material = shaderMaterial;
-    }
-
-
+        }
+    );
+    (plugin as GLTFFileLoader)?.onParsedObservable.add(gltfBabylon => {
+        const skinNode = (gltfBabylon.json as GLTFJson).nodes.find(n => n.name === "skinMesh");
+        console.log(skinNode);
+    });
 }
 
 babylonInit().then(() => {

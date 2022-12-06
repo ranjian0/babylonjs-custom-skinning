@@ -55,8 +55,7 @@ export const babylonInit = async (): Promise<void> => {
     void Promise.all([
         import("@babylonjs/core/Debug/debugLayer"),
         import("@babylonjs/inspector"),
-    ]).then((_values) => {
-        console.log(_values);
+    ]).then(() => {
         scene.debugLayer.show({
             handleResize: true,
             overlay: true,

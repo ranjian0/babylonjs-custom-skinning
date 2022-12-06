@@ -101,7 +101,7 @@ async function buildScene(scene: Scene) {
             if (resulting_mesh) {
                 Effect.ShadersStore["skinningVertexShader"] = skinningVertexShader;
                 Effect.ShadersStore["skinningFragmentShader"] = skinningFragmentShader;
-            
+
                 const shaderMaterial = new ShaderMaterial(
                     "skinning",
                     scene,
@@ -116,8 +116,8 @@ async function buildScene(scene: Scene) {
                         uniforms: ["cameraPosition", "world", "worldViewProjection"],
                     }
                 );
-                
-                resulting_mesh.material = shaderMaterial;            
+
+                resulting_mesh.material = shaderMaterial;
             }
         }
     );
